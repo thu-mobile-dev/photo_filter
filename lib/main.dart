@@ -61,8 +61,8 @@ class _ExampleInstagramFilterSelectionState
     return ValueListenableBuilder(
       valueListenable: _filterColor,
       builder: (context, color, child) {
-        return Image.network(
-          'https://docs.flutter.dev/cookbook/img-files/effects/instagram-buttons/millenial-dude.jpg',
+        return Image(
+          image: const AssetImage("assets/photo.jpg"),
           color: color.withOpacity(0.5),
           colorBlendMode: BlendMode.color,
           fit: BoxFit.cover,
@@ -317,12 +317,10 @@ class FilterItem extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: ClipOval(
-            child: Image.network(
-              'https://docs.flutter.dev/cookbook/img-files/effects/instagram-buttons/millenial-texture.jpg',
-              color: color.withOpacity(0.5),
-              colorBlendMode: BlendMode.hardLight,
-            ),
-          ),
+              child: Image(
+                  image: const AssetImage("assets/texture.jpg"),
+                  color: color.withOpacity(0.5),
+                  colorBlendMode: BlendMode.hardLight)),
         ),
       ),
     );
