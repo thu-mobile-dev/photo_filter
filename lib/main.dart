@@ -1,79 +1,76 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ViewportOffset;
+import 'package:flutter/rendering.dart';
+
+final List<Color> colors = [
+  Colors.white,
+  ...List.generate(
+    Colors.primaries.length,
+    (index) => Colors.primaries[(index * 4) % Colors.primaries.length],
+  )
+];
+
+const double ring_width = 8.0;
 
 void main() {
+  debugPaintSizeEnabled = true;
+
   runApp(
-    const MaterialApp(
-      home: PhotoFilterPage(),
+    MaterialApp(
+      home: const FilterPage(),
       debugShowCheckedModeBanner: false,
     ),
   );
 }
 
 @immutable
-class PhotoFilterPage extends StatefulWidget {
-  const PhotoFilterPage({super.key});
+class FilterPage extends StatefulWidget {
+  const FilterPage({super.key});
 
   @override
-  State<PhotoFilterPage> createState() => _PhotoFilterPageState();
+  State<FilterPage> createState() => _FilterPageState();
 }
 
-class _PhotoFilterPageState extends State<PhotoFilterPage> {
-  final _filters = [
-    Colors.white,
-    ...List.generate(
-      Colors.primaries.length,
-      (index) => Colors.primaries[(index * 4) % Colors.primaries.length],
-    )
-  ];
-
-  // TODO what is ValueNotifier
-  final _filterColor = ValueNotifier<Color>(Colors.white);
-
-  void _onFilterChanged(Color value) {
-    _filterColor.value = value;
+class _FilterPageState extends State<FilterPage> {
+  Color selectedColor = Colors.white;
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: PhotoView(color: selectedColor),
+        ),
+        Positioned(
+          left: 0.0,
+          right: 0.0,
+          bottom: 0.0,
+          child: FilterSelector(
+            onColorChanged: (Color newColor) {
+              setState(() {
+                selectedColor = newColor;
+              });
+            },
+            colors: colors,
+          ),
+        )
+      ],
+    );
   }
+}
+
+class PhotoView extends StatelessWidget {
+  const PhotoView({super.key, required this.color});
+
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: _buildPhotoWithFilter(),
-          ),
-          Positioned(
-            left: 0.0,
-            right: 0.0,
-            bottom: 0.0,
-            child: _buildFilterSelector(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhotoWithFilter() {
-    return ValueListenableBuilder(
-      valueListenable: _filterColor,
-      builder: (context, color, child) {
-        return Image(
-          image: const AssetImage("assets/photo.jpg"),
-          color: color.withOpacity(0.5),
-          colorBlendMode: BlendMode.color,
-          fit: BoxFit.cover,
-        );
-      },
-    );
-  }
-
-  Widget _buildFilterSelector() {
-    return FilterSelector(
-      onFilterChanged: _onFilterChanged,
-      filters: _filters,
+    return Image(
+      image: const AssetImage("assets/photo.jpg"),
+      color: color.withOpacity(0.5),
+      colorBlendMode: BlendMode.color,
+      fit: BoxFit.cover,
     );
   }
 }
@@ -82,13 +79,13 @@ class _PhotoFilterPageState extends State<PhotoFilterPage> {
 class FilterSelector extends StatefulWidget {
   const FilterSelector({
     super.key,
-    required this.filters,
-    required this.onFilterChanged,
+    required this.colors,
+    required this.onColorChanged,
     this.padding = const EdgeInsets.symmetric(vertical: 24.0),
   });
 
-  final List<Color> filters;
-  final void Function(Color selectedColor) onFilterChanged;
+  final List<Color> colors;
+  final void Function(Color selectedColor) onColorChanged;
   final EdgeInsets padding;
 
   @override
@@ -102,9 +99,9 @@ class _FilterSelectorState extends State<FilterSelector> {
   late final PageController _controller;
   late int _page;
 
-  int get filterCount => widget.filters.length;
+  int get filterCount => widget.colors.length;
 
-  Color itemColor(int index) => widget.filters[index % filterCount];
+  Color itemColor(int index) => widget.colors[index % filterCount];
 
   @override
   void initState() {
@@ -121,11 +118,11 @@ class _FilterSelectorState extends State<FilterSelector> {
     final page = (_controller.page ?? 0).round();
     if (page != _page) {
       _page = page;
-      widget.onFilterChanged(widget.filters[page]);
+      widget.onColorChanged(widget.colors[page]);
     }
   }
 
-  void _onFilterTapped(int index) {
+  void _onColorChanged(int index) {
     _controller.animateToPage(
       index,
       duration: const Duration(milliseconds: 450),
@@ -141,51 +138,45 @@ class _FilterSelectorState extends State<FilterSelector> {
 
   @override
   Widget build(BuildContext context) {
-    return Scrollable(
-      controller: _controller,
-      axisDirection: AxisDirection.right,
-      physics: const PageScrollPhysics(),
-      viewportBuilder: (context, viewportOffset) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final itemSize = constraints.maxWidth * _viewportFractionPerItem;
-            viewportOffset
-              ..applyViewportDimension(constraints.maxWidth)
-              ..applyContentDimensions(0.0, itemSize * (filterCount - 1));
+    return Stack(
+      children: [
+        Scrollable(
+          controller: _controller,
+          axisDirection: AxisDirection.right,
+          physics: const PageScrollPhysics(),
+          viewportBuilder: (context, viewportOffset) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final itemSize =
+                    constraints.maxWidth * _viewportFractionPerItem;
+                viewportOffset.applyViewportDimension(constraints.maxWidth);
+                viewportOffset.applyContentDimensions(
+                    0.0, itemSize * (filterCount - 1));
 
-            return Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                _buildShadowGradient(itemSize),
-                _buildCarousel(
-                  viewportOffset: viewportOffset,
-                  itemSize: itemSize,
-                ),
-                _buildSelectionRing(itemSize),
-              ],
+                return Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    ShadowView(
+                      height: itemSize + widget.padding.vertical,
+                    ),
+                    _buildCarousel(
+                      viewportOffset: viewportOffset,
+                      itemSize: itemSize,
+                    ),
+                    Padding(
+                      padding: widget.padding,
+                      child: RingView(
+                        size: itemSize,
+                        width: ring_width,
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
-        );
-      },
-    );
-  }
-
-  Widget _buildShadowGradient(double itemSize) {
-    return SizedBox(
-      height: itemSize * 2 + widget.padding.vertical,
-      child: const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Colors.black,
-            ],
-          ),
         ),
-        child: SizedBox.expand(),
-      ),
+      ],
     );
   }
 
@@ -193,52 +184,48 @@ class _FilterSelectorState extends State<FilterSelector> {
     required ViewportOffset viewportOffset,
     required double itemSize,
   }) {
-    return Container(
-      height: itemSize,
-      margin: widget.padding,
-      child: Flow(
-        delegate: CarouselFlowDelegate(
-          viewportOffset: viewportOffset,
-          filtersPerScreen: _filtersPerScreen,
-        ),
-        children: [
-          for (int i = 0; i < filterCount; i++)
-            FilterItem(
-              onFilterSelected: () => _onFilterTapped(i),
-              color: itemColor(i),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelectionRing(double itemSize) {
     return Padding(
       padding: widget.padding,
-      child: SizedBox(
-        width: itemSize,
+      child: Container(
         height: itemSize,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.fromBorderSide(
-              BorderSide(width: 6.0, color: Colors.white),
-            ),
+        child: Flow(
+          delegate: ColorsViewFlowDelegate(
+            viewportOffset: viewportOffset,
+            colorsPerScreen: _filtersPerScreen,
           ),
+          children: [
+            for (int i = 0; i < filterCount; i++)
+              Padding(
+                padding: const EdgeInsets.all(ring_width),
+                child: ColorView(
+                  onTap: () => _onColorChanged(i),
+                  color: itemColor(i),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-class CarouselFlowDelegate extends FlowDelegate {
-  CarouselFlowDelegate({
+class ColorsView extends StatelessWidget {
+  const ColorsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Placeholder();
+  }
+}
+
+class ColorsViewFlowDelegate extends FlowDelegate {
+  ColorsViewFlowDelegate({
     required this.viewportOffset,
-    required this.filtersPerScreen,
+    required this.colorsPerScreen,
   }) : super(repaint: viewportOffset);
 
   final ViewportOffset viewportOffset;
-  final int filtersPerScreen;
+  final int colorsPerScreen;
 
   @override
   void paintChildren(FlowPaintingContext context) {
@@ -250,7 +237,7 @@ class CarouselFlowDelegate extends FlowDelegate {
     // The distance that a single item "page" takes up from the perspective
     // of the scroll paging system. We also use this size for the width and
     // height of a single item.
-    final itemExtent = size / filtersPerScreen;
+    final itemExtent = size / colorsPerScreen;
 
     // The current scroll position expressed as an item fraction, e.g., 0.0,
     // or 1.0, or 1.3, or 2.9, etc. A value of 1.3 indicates that item at
@@ -289,36 +276,81 @@ class CarouselFlowDelegate extends FlowDelegate {
   }
 
   @override
-  bool shouldRepaint(covariant CarouselFlowDelegate oldDelegate) {
+  bool shouldRepaint(covariant ColorsViewFlowDelegate oldDelegate) {
     return oldDelegate.viewportOffset != viewportOffset;
   }
 }
 
-@immutable
-class FilterItem extends StatelessWidget {
-  const FilterItem({
+class ColorView extends StatelessWidget {
+  const ColorView({
     super.key,
     required this.color,
-    this.onFilterSelected,
+    this.onTap,
   });
 
   final Color color;
-  final VoidCallback? onFilterSelected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onFilterSelected,
+      onTap: onTap,
       child: AspectRatio(
         aspectRatio: 1.0,
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ClipOval(
-              child: Image(
-                  image: const AssetImage("assets/texture.jpg"),
-                  color: color.withOpacity(0.5),
-                  colorBlendMode: BlendMode.hardLight)),
+        child: ClipOval(
+            child: Image(
+                image: const AssetImage("assets/texture.jpg"),
+                color: color.withOpacity(0.5),
+                colorBlendMode: BlendMode.hardLight)),
+      ),
+    );
+  }
+}
+
+class RingView extends StatelessWidget {
+  const RingView({super.key, required this.size, required this.width});
+
+  final double size;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.fromBorderSide(
+            BorderSide(width: width, color: Colors.white),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class ShadowView extends StatelessWidget {
+  final double height;
+
+  const ShadowView({super.key, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black87,
+            ],
+          ),
+        ),
+        child: SizedBox.expand(),
       ),
     );
   }
