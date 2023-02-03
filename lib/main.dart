@@ -6,23 +6,21 @@ import 'package:flutter/rendering.dart' show ViewportOffset;
 void main() {
   runApp(
     const MaterialApp(
-      home: ExampleInstagramFilterSelection(),
+      home: PhotoFilterPage(),
       debugShowCheckedModeBanner: false,
     ),
   );
 }
 
 @immutable
-class ExampleInstagramFilterSelection extends StatefulWidget {
-  const ExampleInstagramFilterSelection({super.key});
+class PhotoFilterPage extends StatefulWidget {
+  const PhotoFilterPage({super.key});
 
   @override
-  State<ExampleInstagramFilterSelection> createState() =>
-      _ExampleInstagramFilterSelectionState();
+  State<PhotoFilterPage> createState() => _PhotoFilterPageState();
 }
 
-class _ExampleInstagramFilterSelectionState
-    extends State<ExampleInstagramFilterSelection> {
+class _PhotoFilterPageState extends State<PhotoFilterPage> {
   final _filters = [
     Colors.white,
     ...List.generate(
@@ -31,6 +29,7 @@ class _ExampleInstagramFilterSelectionState
     )
   ];
 
+  // TODO what is ValueNotifier
   final _filterColor = ValueNotifier<Color>(Colors.white);
 
   void _onFilterChanged(Color value) {
@@ -214,18 +213,16 @@ class _FilterSelectorState extends State<FilterSelector> {
   }
 
   Widget _buildSelectionRing(double itemSize) {
-    return IgnorePointer(
-      child: Padding(
-        padding: widget.padding,
-        child: SizedBox(
-          width: itemSize,
-          height: itemSize,
-          child: const DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.fromBorderSide(
-                BorderSide(width: 6.0, color: Colors.white),
-              ),
+    return Padding(
+      padding: widget.padding,
+      child: SizedBox(
+        width: itemSize,
+        height: itemSize,
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.fromBorderSide(
+              BorderSide(width: 6.0, color: Colors.white),
             ),
           ),
         ),
