@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -12,6 +11,9 @@ final List<Color> colors = [
 ];
 
 const double ring_width = 8.0;
+const double vertical_padding_size = 24.0;
+const int color_count_on_screen = 5;
+const double viewport_fraction_per_color = 1.0 / color_count_on_screen;
 
 void main() {
   debugPaintSizeEnabled = true;
@@ -24,7 +26,6 @@ void main() {
   );
 }
 
-@immutable
 class FilterPage extends StatefulWidget {
   const FilterPage({super.key});
 
@@ -34,68 +35,46 @@ class FilterPage extends StatefulWidget {
 
 class _FilterPageState extends State<FilterPage> {
   Color selectedColor = Colors.white;
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         Positioned.fill(
-          child: PhotoView(color: selectedColor),
+          child: PhotoView(filterColor: selectedColor),
         ),
         Positioned(
-          left: 0.0,
-          right: 0.0,
-          bottom: 0.0,
-          child: FilterSelector(
-            onColorChanged: (Color newColor) {
-              setState(() {
-                selectedColor = newColor;
-              });
-            },
-            colors: colors,
-          ),
-        )
+            left: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+            child: FilterSelector(
+              onColorChanged: (Color newColor) {
+                setState(() {
+                  selectedColor = newColor;
+                });
+              },
+              colors: colors,
+            ))
       ],
     );
   }
 }
 
-class PhotoView extends StatelessWidget {
-  const PhotoView({super.key, required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Image(
-      image: const AssetImage("assets/photo.jpg"),
-      color: color.withOpacity(0.5),
-      colorBlendMode: BlendMode.color,
-      fit: BoxFit.cover,
-    );
-  }
-}
-
-@immutable
 class FilterSelector extends StatefulWidget {
   const FilterSelector({
     super.key,
     required this.colors,
     required this.onColorChanged,
-    this.padding = const EdgeInsets.symmetric(vertical: 24.0),
   });
 
   final List<Color> colors;
   final void Function(Color selectedColor) onColorChanged;
-  final EdgeInsets padding;
 
   @override
   State<FilterSelector> createState() => _FilterSelectorState();
 }
 
 class _FilterSelectorState extends State<FilterSelector> {
-  static const _filtersPerScreen = 5;
-  static const _viewportFractionPerItem = 1.0 / _filtersPerScreen;
-
   late final PageController _controller;
   late int _page;
 
@@ -109,7 +88,7 @@ class _FilterSelectorState extends State<FilterSelector> {
     _page = 0;
     _controller = PageController(
       initialPage: _page,
-      viewportFraction: _viewportFractionPerItem,
+      viewportFraction: viewport_fraction_per_color,
     );
     _controller.addListener(_onPageChanged);
   }
@@ -138,72 +117,123 @@ class _FilterSelectorState extends State<FilterSelector> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scrollable(
-          controller: _controller,
-          axisDirection: AxisDirection.right,
-          physics: const PageScrollPhysics(),
-          viewportBuilder: (context, viewportOffset) {
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final itemSize =
-                    constraints.maxWidth * _viewportFractionPerItem;
-                viewportOffset.applyViewportDimension(constraints.maxWidth);
-                viewportOffset.applyContentDimensions(
-                    0.0, itemSize * (filterCount - 1));
-
-                return Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    ShadowView(
-                      height: itemSize + widget.padding.vertical,
-                    ),
-                    _buildCarousel(
+    return LayoutBuilder(builder: (context, constraints) {
+      final itemSize = constraints.maxWidth * viewport_fraction_per_color;
+      return Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          ShadowView(
+            height: itemSize + vertical_padding_size * 2,
+          ),
+          // TODO extract to ColorsView
+          Scrollable(
+            controller: _controller,
+            axisDirection: AxisDirection.right,
+            physics: const PageScrollPhysics(),
+            viewportBuilder: (context, viewportOffset) {
+              viewportOffset.applyViewportDimension(constraints.maxWidth);
+              viewportOffset.applyContentDimensions(
+                  0.0, itemSize * (filterCount - 1));
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24.0),
+                child: SizedBox(
+                  height: itemSize,
+                  child: Flow(
+                    delegate: ColorsViewFlowDelegate(
                       viewportOffset: viewportOffset,
-                      itemSize: itemSize,
+                      colorsPerScreen: color_count_on_screen,
                     ),
-                    Padding(
-                      padding: widget.padding,
-                      child: RingView(
-                        size: itemSize,
-                        width: ring_width,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
-      ],
+                    children: [
+                      for (int i = 0; i < filterCount; i++)
+                        Padding(
+                          padding: const EdgeInsets.all(ring_width),
+                          child: ColorView(
+                            onTap: () => _onColorChanged(i),
+                            filterColor: itemColor(i),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0),
+            child: RingView(
+              size: itemSize,
+              width: ring_width,
+            ),
+          )
+        ],
+      );
+    });
+  }
+}
+
+class PhotoView extends StatelessWidget {
+  const PhotoView({super.key, required this.filterColor});
+
+  final Color filterColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image(
+      image: const AssetImage("assets/photo.jpg"),
+      color: filterColor.withOpacity(0.5),
+      colorBlendMode: BlendMode.color,
+      fit: BoxFit.cover,
     );
   }
+}
 
-  Widget _buildCarousel({
-    required ViewportOffset viewportOffset,
-    required double itemSize,
-  }) {
-    return Padding(
-      padding: widget.padding,
-      child: Container(
-        height: itemSize,
-        child: Flow(
-          delegate: ColorsViewFlowDelegate(
-            viewportOffset: viewportOffset,
-            colorsPerScreen: _filtersPerScreen,
+class ShadowView extends StatelessWidget {
+  final double height;
+
+  const ShadowView({super.key, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black87,
+            ],
           ),
-          children: [
-            for (int i = 0; i < filterCount; i++)
-              Padding(
-                padding: const EdgeInsets.all(ring_width),
-                child: ColorView(
-                  onTap: () => _onColorChanged(i),
-                  color: itemColor(i),
-                ),
-              ),
-          ],
         ),
+        child: SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+class ColorView extends StatelessWidget {
+  const ColorView({
+    super.key,
+    required this.filterColor,
+    this.onTap,
+  });
+
+  final Color filterColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: ClipOval(
+            child: Image(
+                image: const AssetImage("assets/texture.jpg"),
+                color: filterColor.withOpacity(0.5),
+                colorBlendMode: BlendMode.hardLight)),
       ),
     );
   }
@@ -215,6 +245,29 @@ class ColorsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Placeholder();
+  }
+}
+
+class RingView extends StatelessWidget {
+  const RingView({super.key, required this.size, required this.width});
+
+  final double size;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.fromBorderSide(
+            BorderSide(width: width, color: Colors.white),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -278,80 +331,5 @@ class ColorsViewFlowDelegate extends FlowDelegate {
   @override
   bool shouldRepaint(covariant ColorsViewFlowDelegate oldDelegate) {
     return oldDelegate.viewportOffset != viewportOffset;
-  }
-}
-
-class ColorView extends StatelessWidget {
-  const ColorView({
-    super.key,
-    required this.color,
-    this.onTap,
-  });
-
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 1.0,
-        child: ClipOval(
-            child: Image(
-                image: const AssetImage("assets/texture.jpg"),
-                color: color.withOpacity(0.5),
-                colorBlendMode: BlendMode.hardLight)),
-      ),
-    );
-  }
-}
-
-class RingView extends StatelessWidget {
-  const RingView({super.key, required this.size, required this.width});
-
-  final double size;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.fromBorderSide(
-            BorderSide(width: width, color: Colors.white),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ShadowView extends StatelessWidget {
-  final double height;
-
-  const ShadowView({super.key, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Colors.black87,
-            ],
-          ),
-        ),
-        child: SizedBox.expand(),
-      ),
-    );
   }
 }
