@@ -1,14 +1,11 @@
-import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'dart:math' show min, max;
 
-const double ring_width = 8.0;
-const double vertical_padding_size = 24.0;
-const int color_count_on_screen = 5;
-const double viewport_fraction_per_color = 1.0 / color_count_on_screen;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show debugPaintSizeEnabled, ViewportOffset;
 
 void main() {
-  debugPaintSizeEnabled = true;
+  // debugPaintSizeEnabled = true;
 
   runApp(
     const MaterialApp(
@@ -31,21 +28,18 @@ class _PhotoWithFilterPageState extends State<PhotoWithFilterPage> {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      alignment: Alignment.bottomCenter,
       children: [
         Positioned.fill(
-          child: PhotoView(filterColor: selectedColor),
+          child: PhotoWithFilterView(filterColor: selectedColor),
         ),
-        Positioned(
-            left: 0.0,
-            right: 0.0,
-            bottom: 0.0,
-            child: ColorSelectorView(
-              onColorChanged: (Color newColor) {
-                setState(() {
-                  selectedColor = newColor;
-                });
-              },
-            ))
+        ColorSelectorView(
+          onColorSelected: (Color color) {
+            setState(() {
+              selectedColor = color;
+            });
+          },
+        )
       ],
     );
   }
@@ -54,10 +48,16 @@ class _PhotoWithFilterPageState extends State<PhotoWithFilterPage> {
 class ColorSelectorView extends StatefulWidget {
   const ColorSelectorView({
     super.key,
-    required this.onColorChanged,
+    required this.onColorSelected,
+    this.colorCountOnScreen = 5,
+    this.ringWidth = 8.0,
+    this.verticlePaddingSize = 24.0,
   });
 
-  final void Function(Color selectedColor) onColorChanged;
+  final void Function(Color selectedColor) onColorSelected;
+  final int colorCountOnScreen;
+  final double ringWidth;
+  final double verticlePaddingSize;
 
   @override
   State<ColorSelectorView> createState() => _ColorSelectorViewState();
@@ -67,13 +67,14 @@ class _ColorSelectorViewState extends State<ColorSelectorView> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final itemSize = constraints.maxWidth * viewport_fraction_per_color;
+      final double itemSize =
+          constraints.maxWidth * 1.0 / widget.colorCountOnScreen;
 
       return Stack(
         alignment: Alignment.bottomCenter,
         children: [
           ShadowView(
-            height: itemSize + vertical_padding_size * 2,
+            height: itemSize + widget.verticlePaddingSize * 2,
           ),
           ColorsView(
             colors: [
@@ -84,15 +85,23 @@ class _ColorSelectorViewState extends State<ColorSelectorView> {
                     Colors.primaries[(index * 4) % Colors.primaries.length],
               )
             ],
-            onColorChanged: widget.onColorChanged,
+            onColorSelected: widget.onColorSelected,
             fullWidth: constraints.maxWidth,
+            colorCountOnScreen: widget.colorCountOnScreen,
             itemSize: itemSize,
+            verticlePaddingSize: widget.verticlePaddingSize,
+            ringWidth: widget.ringWidth,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24.0),
-            child: RingView(
-              size: itemSize,
-              width: ring_width,
+          IgnorePointer(
+            // `RingView` with `Padding` is on `ColorsView` (in `Stack`).
+            // Without `IgnorePointer`, user cannot slide the `ColorSelectorView`
+            // when mouse on or finger tapped at the most center `ColorView`.
+            child: Padding(
+              padding: EdgeInsets.only(bottom: widget.verticlePaddingSize),
+              child: RingView(
+                size: itemSize,
+                borderWidth: widget.ringWidth,
+              ),
             ),
           )
         ],
@@ -105,49 +114,55 @@ class ColorsView extends StatefulWidget {
   const ColorsView({
     super.key,
     required this.colors,
-    required this.onColorChanged,
+    required this.onColorSelected,
     required this.itemSize,
     required this.fullWidth,
+    required this.verticlePaddingSize,
+    required this.ringWidth,
+    required this.colorCountOnScreen,
   });
 
   final List<Color> colors;
-  final void Function(Color selectedColor) onColorChanged;
+  final void Function(Color selectedColor) onColorSelected;
   final double itemSize;
   final double fullWidth;
+  final double verticlePaddingSize;
+  final double ringWidth;
+  final int colorCountOnScreen;
 
   @override
   State<ColorsView> createState() => _ColorsViewState();
 }
 
 class _ColorsViewState extends State<ColorsView> {
-  late final PageController _controller;
-  late int _page;
+  late final PageController _pageController;
+  late int _currentPage;
 
-  int get filterCount => widget.colors.length;
+  int get colorCount => widget.colors.length;
 
-  Color itemColor(int index) => widget.colors[index % filterCount];
+  Color itemColor(int index) => widget.colors[index % colorCount];
 
   @override
   void initState() {
     super.initState();
-    _page = 0;
-    _controller = PageController(
-      initialPage: _page,
-      viewportFraction: viewport_fraction_per_color,
+    _currentPage = 0;
+    _pageController = PageController(
+      initialPage: _currentPage,
+      viewportFraction: 1.0 / widget.colorCountOnScreen,
     );
-    _controller.addListener(_onPageChanged);
+    _pageController.addListener(_onPageChanged);
   }
 
   void _onPageChanged() {
-    final page = (_controller.page ?? 0).round();
-    if (page != _page) {
-      _page = page;
-      widget.onColorChanged(widget.colors[page]);
+    final newPage = (_pageController.page ?? 0.0).round();
+    if (newPage != _currentPage) {
+      _currentPage = newPage;
+      widget.onColorSelected(widget.colors[_currentPage]);
     }
   }
 
-  void _onColorChanged(int index) {
-    _controller.animateToPage(
+  void _onColorSelected(int index) {
+    _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 450),
       curve: Curves.ease,
@@ -156,36 +171,37 @@ class _ColorsViewState extends State<ColorsView> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scrollable(
-      controller: _controller,
+      controller: _pageController,
       axisDirection: AxisDirection.right,
       physics: const PageScrollPhysics(),
       viewportBuilder: (context, viewportOffset) {
         viewportOffset.applyViewportDimension(widget.fullWidth);
         viewportOffset.applyContentDimensions(
-            0.0, widget.itemSize * (filterCount - 1));
+            0.0, widget.itemSize * (colorCount - 1));
+
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24.0),
+          padding: EdgeInsets.symmetric(vertical: widget.verticlePaddingSize),
           child: SizedBox(
             height: widget.itemSize,
             child: Flow(
               delegate: ColorsViewFlowDelegate(
                 viewportOffset: viewportOffset,
-                colorsPerScreen: color_count_on_screen,
+                colorCountOnScreen: widget.colorCountOnScreen,
               ),
               children: [
-                for (int i = 0; i < filterCount; i++)
+                for (int i = 0; i < colorCount; i++)
                   Padding(
-                    padding: const EdgeInsets.all(ring_width),
+                    padding: EdgeInsets.all(widget.ringWidth),
                     child: ColorView(
-                      onTap: () => _onColorChanged(i),
-                      filterColor: itemColor(i),
+                      onTap: () => _onColorSelected(i),
+                      color: itemColor(i),
                     ),
                   ),
               ],
@@ -200,11 +216,11 @@ class _ColorsViewState extends State<ColorsView> {
 class ColorsViewFlowDelegate extends FlowDelegate {
   ColorsViewFlowDelegate({
     required this.viewportOffset,
-    required this.colorsPerScreen,
+    required this.colorCountOnScreen,
   }) : super(repaint: viewportOffset);
 
   final ViewportOffset viewportOffset;
-  final int colorsPerScreen;
+  final int colorCountOnScreen;
 
   @override
   void paintChildren(FlowPaintingContext context) {
@@ -213,10 +229,10 @@ class ColorsViewFlowDelegate extends FlowDelegate {
     // All available painting width
     final size = context.size.width;
 
-    // The distance that a single item "page" takes up from the perspective
+    // The distance that a single item "newPage" takes up from the perspective
     // of the scroll paging system. We also use this size for the width and
     // height of a single item.
-    final itemExtent = size / colorsPerScreen;
+    final itemExtent = size / colorCountOnScreen;
 
     // The current scroll position expressed as an item fraction, e.g., 0.0,
     // or 1.0, or 1.3, or 2.9, etc. A value of 1.3 indicates that item at
@@ -226,14 +242,14 @@ class ColorsViewFlowDelegate extends FlowDelegate {
 
     // Index of the first item we need to paint at this moment.
     // At most, we paint 3 items to the left of the active item.
-    final min = math.max(0, active.floor() - 3).toInt();
+    final minimum = max(0, active.floor() - 3).toInt();
 
     // Index of the last item we need to paint at this moment.
     // At most, we paint 3 items to the right of the active item.
-    final max = math.min(count - 1, active.ceil() + 3).toInt();
+    final maximum = min(count - 1, active.ceil() + 3).toInt();
 
     // Generate transforms for the visible items and sort by distance.
-    for (var index = min; index <= max; index++) {
+    for (var index = minimum; index <= maximum; index++) {
       final itemXFromCenter = itemExtent * index - viewportOffset.pixels;
       final percentFromCenter = 1.0 - (itemXFromCenter / (size / 2)).abs();
       final itemScale = 0.5 + (percentFromCenter * 0.5);
@@ -263,12 +279,12 @@ class ColorsViewFlowDelegate extends FlowDelegate {
 class ColorView extends StatelessWidget {
   const ColorView({
     super.key,
-    required this.filterColor,
-    this.onTap,
+    required this.color,
+    required this.onTap,
   });
 
-  final Color filterColor;
-  final VoidCallback? onTap;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -279,15 +295,15 @@ class ColorView extends StatelessWidget {
         child: ClipOval(
             child: Image(
                 image: const AssetImage("assets/texture.jpg"),
-                color: filterColor.withOpacity(0.5),
+                color: color.withOpacity(0.5),
                 colorBlendMode: BlendMode.hardLight)),
       ),
     );
   }
 }
 
-class PhotoView extends StatelessWidget {
-  const PhotoView({super.key, required this.filterColor});
+class PhotoWithFilterView extends StatelessWidget {
+  const PhotoWithFilterView({super.key, required this.filterColor});
 
   final Color filterColor;
 
@@ -329,10 +345,10 @@ class ShadowView extends StatelessWidget {
 }
 
 class RingView extends StatelessWidget {
-  const RingView({super.key, required this.size, required this.width});
+  const RingView({super.key, required this.size, required this.borderWidth});
 
   final double size;
-  final double width;
+  final double borderWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +359,7 @@ class RingView extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.fromBorderSide(
-            BorderSide(width: width, color: Colors.white),
+            BorderSide(width: borderWidth, color: Colors.white),
           ),
         ),
       ),
