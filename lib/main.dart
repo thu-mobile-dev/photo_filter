@@ -45,7 +45,7 @@ class _PhotoWithFilterPageState extends State<PhotoWithFilterPage> {
   }
 }
 
-class ColorSelectorView extends StatefulWidget {
+class ColorSelectorView extends StatelessWidget {
   const ColorSelectorView({
     super.key,
     required this.onColorSelected,
@@ -60,21 +60,15 @@ class ColorSelectorView extends StatefulWidget {
   final double verticlePaddingSize;
 
   @override
-  State<ColorSelectorView> createState() => _ColorSelectorViewState();
-}
-
-class _ColorSelectorViewState extends State<ColorSelectorView> {
-  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final double itemSize =
-          constraints.maxWidth * 1.0 / widget.colorCountOnScreen;
+      final double itemSize = constraints.maxWidth * 1.0 / colorCountOnScreen;
 
       return Stack(
         alignment: Alignment.bottomCenter,
         children: [
           ShadowView(
-            height: itemSize + widget.verticlePaddingSize * 2,
+            height: itemSize + verticlePaddingSize * 2,
           ),
           ColorsView(
             colors: [
@@ -85,22 +79,22 @@ class _ColorSelectorViewState extends State<ColorSelectorView> {
                     Colors.primaries[(index * 4) % Colors.primaries.length],
               )
             ],
-            onColorSelected: widget.onColorSelected,
+            onColorSelected: onColorSelected,
             fullWidth: constraints.maxWidth,
-            colorCountOnScreen: widget.colorCountOnScreen,
+            colorCountOnScreen: colorCountOnScreen,
             itemSize: itemSize,
-            verticlePaddingSize: widget.verticlePaddingSize,
-            ringWidth: widget.ringWidth,
+            verticlePaddingSize: verticlePaddingSize,
+            ringWidth: ringWidth,
           ),
           IgnorePointer(
             // `RingView` with `Padding` is on `ColorsView` (in `Stack`).
             // Without `IgnorePointer`, user cannot slide the `ColorSelectorView`
             // when mouse on or finger tapped at the most center `ColorView`.
             child: Padding(
-              padding: EdgeInsets.only(bottom: widget.verticlePaddingSize),
+              padding: EdgeInsets.symmetric(vertical: verticlePaddingSize),
               child: RingView(
                 size: itemSize,
-                borderWidth: widget.ringWidth,
+                borderWidth: ringWidth,
               ),
             ),
           )
@@ -139,7 +133,6 @@ class _ColorsViewState extends State<ColorsView> {
   late int _currentPage;
 
   int get colorCount => widget.colors.length;
-
   Color itemColor(int index) => widget.colors[index % colorCount];
 
   @override
