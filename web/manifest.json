@@ -1,6 +1,6 @@
 {
-    "name": "photo_fliter",
-    "short_name": "photo_fliter",
+    "name": "photo_filter",
+    "short_name": "photo_filter",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

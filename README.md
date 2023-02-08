@@ -1,4 +1,4 @@
-# photo_fliter
+# photo_filter
 
 A new Flutter project.
 

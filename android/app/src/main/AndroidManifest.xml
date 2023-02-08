@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.photo_fliter">
+    package="com.example.photo_filter">
    <application
-        android:label="photo_fliter"
+        android:label="photo_filter"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
